@@ -1,4 +1,4 @@
-module Imagini.App
+namespace Imagini.Api
 
 open System
 open System.IO
@@ -8,6 +8,8 @@ open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
+open Microsoft.AspNetCore.Http
+open FSharp.Control.Tasks.V2
 
 // ---------------------------------
 // Models
@@ -48,71 +50,85 @@ module Views =
 // ---------------------------------
 // Web app
 // ---------------------------------
+module App = 
 
-let indexHandler (name : string) =
-    let greetings = sprintf "Hello %s, from Giraffe!" name
-    let model     = { Text = greetings }
-    let view      = Views.index model
-    htmlView view
+    let fileUploadHandler =
+        fun (next : HttpFunc) (ctx : HttpContext) ->
+            task {
+                return!
+                    (match ctx.Request.HasFormContentType with
+                    | false -> RequestErrors.BAD_REQUEST "Bad request"
+                    | true  ->
+                        ctx.Request.Form.Files
+                        |> Seq.map (fun file -> FileUpload.add file)
+                        |> json) next ctx
+            }
 
-let webApp =
-    choose [
-        GET >=>
-            choose [
-                route "/" >=> indexHandler "world"
-                routef "/hello/%s" indexHandler
-            ]
-        setStatusCode 404 >=> text "Not Found" ]
+    let indexHandler (name : string) =
+        json {| Name = name |}
 
-// ---------------------------------
-// Error handler
-// ---------------------------------
+    let webApp =
+        choose [
+            GET >=>
+                choose [
+                    route "/" >=> indexHandler "world"
+                    routef "/photos/%s" indexHandler
+                ]
+            POST >=>
+                choose [
+                    route "/photos/" >=> fileUploadHandler
+                ]
+            setStatusCode 404 >=> text "Not Found" ]
 
-let errorHandler (ex : Exception) (logger : ILogger) =
-    logger.LogError(ex, "An unhandled exception has occurred while executing the request.")
-    clearResponse >=> setStatusCode 500 >=> text ex.Message
+    // ---------------------------------
+    // Error handler
+    // ---------------------------------
 
-// ---------------------------------
-// Config and Main
-// ---------------------------------
+    let errorHandler (ex : Exception) (logger : ILogger) =
+        logger.LogError(ex, "An unhandled exception has occurred while executing the request.")
+        clearResponse >=> setStatusCode 500 >=> text ex.Message
 
-let configureCors (builder : CorsPolicyBuilder) =
-    builder.WithOrigins("http://localhost:8080")
-           .AllowAnyMethod()
-           .AllowAnyHeader()
-           |> ignore
+    // ---------------------------------
+    // Config and Main
+    // ---------------------------------
 
-let configureApp (app : IApplicationBuilder) =
-    let env = app.ApplicationServices.GetService<IHostingEnvironment>()
-    (match env.IsDevelopment() with
-    | true  -> app.UseDeveloperExceptionPage()
-    | false -> app.UseGiraffeErrorHandler errorHandler)
-        .UseHttpsRedirection()
-        .UseCors(configureCors)
-        .UseStaticFiles()
-        .UseGiraffe(webApp)
+    let configureCors (builder : CorsPolicyBuilder) =
+        builder.WithOrigins("http://localhost:8080")
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               |> ignore
 
-let configureServices (services : IServiceCollection) =
-    services.AddCors()    |> ignore
-    services.AddGiraffe() |> ignore
+    let configureApp (app : IApplicationBuilder) =
+        let env = app.ApplicationServices.GetService<IHostingEnvironment>()
+        (match env.IsDevelopment() with
+        | true  -> app.UseDeveloperExceptionPage()
+        | false -> app.UseGiraffeErrorHandler errorHandler)
+            .UseHttpsRedirection()
+            .UseCors(configureCors)
+            .UseStaticFiles()
+            .UseGiraffe(webApp)
 
-let configureLogging (builder : ILoggingBuilder) =
-    builder.AddFilter(fun l -> l.Equals LogLevel.Error)
-           .AddConsole()
-           .AddDebug() |> ignore
+    let configureServices (services : IServiceCollection) =
+        services.AddCors()    |> ignore
+        services.AddGiraffe() |> ignore
 
-[<EntryPoint>]
-let main _ =
-    let contentRoot = Directory.GetCurrentDirectory()
-    let webRoot     = Path.Combine(contentRoot, "WebRoot")
-    WebHostBuilder()
-        .UseKestrel()
-        .UseContentRoot(contentRoot)
-        .UseIISIntegration()
-        .UseWebRoot(webRoot)
-        .Configure(Action<IApplicationBuilder> configureApp)
-        .ConfigureServices(configureServices)
-        .ConfigureLogging(configureLogging)
-        .Build()
-        .Run()
-    0
+    let configureLogging (builder : ILoggingBuilder) =
+        builder.AddFilter(fun l -> l.Equals LogLevel.Error)
+               .AddConsole()
+               .AddDebug() |> ignore
+
+    [<EntryPoint>]
+    let main _ =
+        let contentRoot = Directory.GetCurrentDirectory()
+        let webRoot     = Path.Combine(contentRoot, "WebRoot")
+        WebHostBuilder()
+            .UseKestrel()
+            .UseContentRoot(contentRoot)
+            .UseIISIntegration()
+            .UseWebRoot(webRoot)
+            .Configure(Action<IApplicationBuilder> configureApp)
+            .ConfigureServices(configureServices)
+            .ConfigureLogging(configureLogging)
+            .Build()
+            .Run()
+        0
