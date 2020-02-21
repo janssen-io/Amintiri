@@ -1,27 +1,118 @@
-namespace Imagini.Api
+module Imagini.App
 
 open System
-open System.Collections.Generic
 open System.IO
-open System.Linq
-open System.Threading.Tasks
-open Microsoft.AspNetCore
+open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
-open Microsoft.Extensions.Configuration
-open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
+open Microsoft.Extensions.DependencyInjection
+open Giraffe
 
-module Program =
-    let exitCode = 0
+// ---------------------------------
+// Models
+// ---------------------------------
 
-    let CreateHostBuilder args =
-        Host.CreateDefaultBuilder(args)
-            .ConfigureWebHostDefaults(fun webBuilder ->
-                webBuilder.UseStartup<Startup>() |> ignore
-            )
+type Message =
+    {
+        Text : string
+    }
 
-    [<EntryPoint>]
-    let main args =
-        CreateHostBuilder(args).Build().Run()
+// ---------------------------------
+// Views
+// ---------------------------------
 
-        exitCode
+module Views =
+    open GiraffeViewEngine
+
+    let layout (content: XmlNode list) =
+        html [] [
+            head [] [
+                title []  [ encodedText "Imagini" ]
+                link [ _rel  "stylesheet"
+                       _type "text/css"
+                       _href "/main.css" ]
+            ]
+            body [] content
+        ]
+
+    let partial () =
+        h1 [] [ encodedText "Imagini" ]
+
+    let index (model : Message) =
+        [
+            partial()
+            p [] [ encodedText model.Text ]
+        ] |> layout
+
+// ---------------------------------
+// Web app
+// ---------------------------------
+
+let indexHandler (name : string) =
+    let greetings = sprintf "Hello %s, from Giraffe!" name
+    let model     = { Text = greetings }
+    let view      = Views.index model
+    htmlView view
+
+let webApp =
+    choose [
+        GET >=>
+            choose [
+                route "/" >=> indexHandler "world"
+                routef "/hello/%s" indexHandler
+            ]
+        setStatusCode 404 >=> text "Not Found" ]
+
+// ---------------------------------
+// Error handler
+// ---------------------------------
+
+let errorHandler (ex : Exception) (logger : ILogger) =
+    logger.LogError(ex, "An unhandled exception has occurred while executing the request.")
+    clearResponse >=> setStatusCode 500 >=> text ex.Message
+
+// ---------------------------------
+// Config and Main
+// ---------------------------------
+
+let configureCors (builder : CorsPolicyBuilder) =
+    builder.WithOrigins("http://localhost:8080")
+           .AllowAnyMethod()
+           .AllowAnyHeader()
+           |> ignore
+
+let configureApp (app : IApplicationBuilder) =
+    let env = app.ApplicationServices.GetService<IHostingEnvironment>()
+    (match env.IsDevelopment() with
+    | true  -> app.UseDeveloperExceptionPage()
+    | false -> app.UseGiraffeErrorHandler errorHandler)
+        .UseHttpsRedirection()
+        .UseCors(configureCors)
+        .UseStaticFiles()
+        .UseGiraffe(webApp)
+
+let configureServices (services : IServiceCollection) =
+    services.AddCors()    |> ignore
+    services.AddGiraffe() |> ignore
+
+let configureLogging (builder : ILoggingBuilder) =
+    builder.AddFilter(fun l -> l.Equals LogLevel.Error)
+           .AddConsole()
+           .AddDebug() |> ignore
+
+[<EntryPoint>]
+let main _ =
+    let contentRoot = Directory.GetCurrentDirectory()
+    let webRoot     = Path.Combine(contentRoot, "WebRoot")
+    WebHostBuilder()
+        .UseKestrel()
+        .UseContentRoot(contentRoot)
+        .UseIISIntegration()
+        .UseWebRoot(webRoot)
+        .Configure(Action<IApplicationBuilder> configureApp)
+        .ConfigureServices(configureServices)
+        .ConfigureLogging(configureLogging)
+        .Build()
+        .Run()
+    0
