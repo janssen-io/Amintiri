@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <AssemblyName>Imagini</AssemblyName>
+    <AssemblyName>Amintiri</AssemblyName>
     <OutputType>Exe</OutputType>
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>

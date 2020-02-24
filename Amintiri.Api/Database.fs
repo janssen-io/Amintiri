@@ -1,8 +1,8 @@
-﻿namespace Imagini.Api
+﻿namespace Amintiri.Api
 
 open MySql.Data
 open MySql.Data.MySqlClient
-open Imagini.Domain
+open Amintiri.Domain
 
 module Database =
 

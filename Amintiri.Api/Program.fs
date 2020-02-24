@@ -1,4 +1,4 @@
-namespace Imagini.Api
+namespace Amintiri.Api
 
 open System
 open System.IO

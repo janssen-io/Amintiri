@@ -1,11 +1,11 @@
-﻿namespace Imagini.Api
+﻿namespace Amintiri.Api
 
 module FileUpload =
 
     open Microsoft.AspNetCore.Http
     open System.IO
 
-    let addToDatabase name (path:Imagini.Domain.Path) =
+    let addToDatabase name (path:Amintiri.Domain.Path) =
         let cnx = Database.createConnection ()
         cnx.Open ()
         Database.Photos.insert cnx path name
@@ -19,7 +19,7 @@ module FileUpload =
             let path = Path.GetTempFileName ()
             using (System.IO.File.Create path) (fun f -> file.CopyToAsync f)
             |> ignore
-            (Some << Imagini.Domain.Path) path
+            (Some << Amintiri.Domain.Path) path
 
     let add (file : IFormFile) =
         let name = "First upload"

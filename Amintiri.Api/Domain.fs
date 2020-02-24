@@ -1,4 +1,6 @@
-﻿namespace Imagini
+﻿namespace Amintiri
+
+open System
 
 module Domain =
     type Path = Path of string
