@@ -1,29 +1,30 @@
 ﻿namespace Amintiri.Api
 
-open MySql.Data
-open MySql.Data.MySqlClient
 open Amintiri.Domain
+open Npgsql.FSharp
 
 module Database =
 
-    [<Literal>]
-    let connectionString = 
-        "User=root;Password=dbaroot;Database=amintiri;Server=localhost;Port=3306;"
-
-    let createConnection () = new MySqlConnection(connectionString)
+    let defaultConnection  =
+        Sql.host "localhost"
+        |> Sql.port 5432
+        |> Sql.username "user"
+        |> Sql.password "password"
+        |> Sql.database "amintiri"
+        |> Sql.sslMode SslMode.Require
+        |> Sql.config "Pooling=true" // optional Config for connection string
+        |> Sql.formatConnectionString
 
     module Photos =
-
-        let insert (cnx:MySqlConnection) (path:Path) (name:string) =
-            let sql = "INSERT INTO photos (path, name) VALUES (@Path, @Name)"
-            let cmd = new MySqlCommand (sql, cnx)
-            cmd.Parameters.Add (new MySqlParameter ("@Path", Path.unwrap path))
-            |> ignore
-            cmd.Parameters.Add (new MySqlParameter ("@Name", name))
-            |> ignore
-            cmd.ExecuteNonQuery ()
                 
-
+        let insert connectionString (path:Path) (name:string) =
+            Sql.connect connectionString
+            |> Sql.query "INSERT INTO photos (path, name) VALUES (@path, @name)"
+            |> Sql.parameters [ 
+                "path", (Path.unwrap >> SqlValue.String) path
+                "name", SqlValue.String name
+            ]  
+            |> Sql.executeNonQuery
 
 
         

@@ -10,6 +10,7 @@ open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open Microsoft.AspNetCore.Http
 open FSharp.Control.Tasks.V2
+open Microsoft.Extensions.Configuration
 
 // ---------------------------------
 // Models
@@ -64,15 +65,18 @@ module App =
                         |> json) next ctx
             }
 
-    let indexHandler (name : string) =
-        json {| Name = name |}
+    let indexHandler : HttpHandler =
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            let settings = ctx.GetService<IConfiguration>()
+            json {| Name = settings.["postgres:password"] |} next ctx
 
     let webApp =
         choose [
             GET >=>
                 choose [
-                    route "/" >=> indexHandler "world"
-                    routef "/photos/%s" indexHandler
+                    //route "/" >=> indexHandler "world"
+                    route "/" >=> indexHandler
+                    //routef "/photos/%s" indexHandler
                 ]
             POST >=>
                 choose [
@@ -99,10 +103,10 @@ module App =
                |> ignore
 
     let configureApp (app : IApplicationBuilder) =
-        let env = app.ApplicationServices.GetService<IHostingEnvironment>()
-        (match env.IsDevelopment() with
-        | true  -> app.UseDeveloperExceptionPage()
-        | false -> app.UseGiraffeErrorHandler errorHandler)
+        let env = app.ApplicationServices.GetService<IWebHostEnvironment>()
+        (match env.EnvironmentName with
+        | "Development"  -> app.UseDeveloperExceptionPage()
+        | _ -> app.UseGiraffeErrorHandler errorHandler)
             .UseHttpsRedirection()
             .UseCors(configureCors)
             .UseStaticFiles()
@@ -117,6 +121,14 @@ module App =
                .AddConsole()
                .AddDebug() |> ignore
 
+    let configureAppConfig (ctx : WebHostBuilderContext) (config : IConfigurationBuilder) =
+        config
+            .AddJsonFile("appsettings.json", false, true)
+            .AddJsonFile(sprintf "appsettings.%s.json" ctx.HostingEnvironment.EnvironmentName, true, true)
+            .AddJsonFile("secrets.json", false, true)
+            .AddEnvironmentVariables()
+        |> ignore
+
     [<EntryPoint>]
     let main _ =
         let contentRoot = Directory.GetCurrentDirectory()
@@ -126,6 +138,7 @@ module App =
             .UseContentRoot(contentRoot)
             .UseIISIntegration()
             .UseWebRoot(webRoot)
+            .ConfigureAppConfiguration(configureAppConfig)
             .Configure(Action<IApplicationBuilder> configureApp)
             .ConfigureServices(configureServices)
             .ConfigureLogging(configureLogging)

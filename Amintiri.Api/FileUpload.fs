@@ -6,11 +6,8 @@ module FileUpload =
     open System.IO
 
     let addToDatabase name (path:Amintiri.Domain.Path) =
-        let cnx = Database.createConnection ()
-        cnx.Open ()
-        Database.Photos.insert cnx path name
+        Database.Photos.insert Database.defaultConnection path name
         |> ignore
-        cnx.Close ()
 
     let upload (file : IFormFile) =
         if file.Length = (int64)0 then
