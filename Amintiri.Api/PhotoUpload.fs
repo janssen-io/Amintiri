@@ -1,6 +1,6 @@
 ﻿namespace Amintiri.Api
 
-module FileUpload =
+module PhotoUpload =
 
     open Microsoft.AspNetCore.Http
     open System.IO
@@ -14,6 +14,7 @@ module FileUpload =
         if file.Length = (int64)0 then
             Error "File is empty"
         else
+            // TODO: get unique filename + path outside webroot
             let path = Path.GetTempFileName ()
             using (System.IO.File.Create path) (fun f -> file.CopyToAsync f)
             |> ignore

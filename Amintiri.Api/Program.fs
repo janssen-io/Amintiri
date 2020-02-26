@@ -12,6 +12,7 @@ open Microsoft.AspNetCore.Http
 open FSharp.Control.Tasks.V2
 open Microsoft.Extensions.Configuration
 open Npgsql.FSharp
+open Amintiri.Domain
 
 // ---------------------------------
 // Models
@@ -58,7 +59,7 @@ module App =
         fun (next : HttpFunc) (ctx : HttpContext) ->
             let settings = ctx.GetService<IConfiguration>()
             let dbConfig = Database.defaultConnection settings
-            let upload = FileUpload.add (dbConfig |> Sql.formatConnectionString)
+            let upload = PhotoUpload.add (dbConfig |> Sql.formatConnectionString)
 
             task {
                 return!
@@ -71,9 +72,18 @@ module App =
             }
 
     let indexHandler : HttpHandler =
+        let unwrapPhoto (photo:Photo) =
+            {| Id = photo.Id; Path = Path.unwrap photo.Path; Name = photo.Name |}
+
         fun (next: HttpFunc) (ctx: HttpContext) ->
             let settings = ctx.GetService<IConfiguration>()
-            json {| Name = settings.["postgres:password"] |} next ctx
+            let dbConfig = Database.defaultConnection settings |> Sql.formatConnectionString
+            ((Result.map (List.map unwrapPhoto) >> json) (PhotoBrowse.list dbConfig)) next ctx
+    
+    let photoHandler (photoId:string) =
+        // TODO: check if user (currently not existing) can see this picture
+        // Grab path from database and return it to the user with the appropriate content type
+        json photoId
 
     let webApp =
         choose [
@@ -81,7 +91,7 @@ module App =
                 choose [
                     //route "/" >=> indexHandler "world"
                     route "/" >=> indexHandler
-                    //routef "/photos/%s" indexHandler
+                    routef "/photos/%s" photoHandler
                 ]
             POST >=>
                 choose [

@@ -8,10 +8,10 @@ module Database =
 
     let defaultConnection (config : IConfiguration) =
         Sql.host config.["postgres:server"]
-        |> Sql.port 5432
+        |> Sql.port (int config.["postgres:port"])
         |> Sql.username config.["postgres:user"]
         |> Sql.password config.["postgres:password"]
-        |> Sql.database "amintiri"
+        |> Sql.database config.["postgres:database"]
         |> Sql.sslMode SslMode.Prefer
         |> Sql.config "Pooling=true" // optional Config for connection string
 
@@ -26,6 +26,14 @@ module Database =
             ]  
             |> Sql.executeNonQuery
 
-
-        
+        let list connectionString =
+            Sql.connect connectionString
+            |> Sql.query "SELECT * FROM photos"
+            |> Sql.execute (fun row ->
+                {
+                    Id = row.int "id"
+                    Path = (row.text "path" |> Path.unsafeCreate)
+                    Name = row.text "name"
+                }
+            )
 

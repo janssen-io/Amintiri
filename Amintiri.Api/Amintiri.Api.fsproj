@@ -21,7 +21,8 @@
     <Content Include="appsettings.json" />
     <Compile Include="Domain.fs" />
     <Compile Include="Database.fs" />
-    <Compile Include="FileUpload.fs" />
+    <Compile Include="PhotoUpload.fs" />
+    <Compile Include="PhotoBrowse.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
