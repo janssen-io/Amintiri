@@ -2,18 +2,18 @@
 
 open Amintiri.Domain
 open Npgsql.FSharp
+open Microsoft.Extensions.Configuration
 
 module Database =
 
-    let defaultConnection  =
-        Sql.host "localhost"
+    let defaultConnection (config : IConfiguration) =
+        Sql.host config.["postgres:server"]
         |> Sql.port 5432
-        |> Sql.username "user"
-        |> Sql.password "password"
+        |> Sql.username config.["postgres:user"]
+        |> Sql.password config.["postgres:password"]
         |> Sql.database "amintiri"
-        |> Sql.sslMode SslMode.Require
+        |> Sql.sslMode SslMode.Prefer
         |> Sql.config "Pooling=true" // optional Config for connection string
-        |> Sql.formatConnectionString
 
     module Photos =
                 

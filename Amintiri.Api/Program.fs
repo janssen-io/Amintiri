@@ -11,6 +11,7 @@ open Giraffe
 open Microsoft.AspNetCore.Http
 open FSharp.Control.Tasks.V2
 open Microsoft.Extensions.Configuration
+open Npgsql.FSharp
 
 // ---------------------------------
 // Models
@@ -55,13 +56,17 @@ module App =
 
     let fileUploadHandler =
         fun (next : HttpFunc) (ctx : HttpContext) ->
+            let settings = ctx.GetService<IConfiguration>()
+            let dbConfig = Database.defaultConnection settings
+            let upload = FileUpload.add (dbConfig |> Sql.formatConnectionString)
+
             task {
                 return!
                     (match ctx.Request.HasFormContentType with
                     | false -> RequestErrors.BAD_REQUEST "Bad request"
                     | true  ->
                         ctx.Request.Form.Files
-                        |> Seq.map (fun file -> FileUpload.add file)
+                        |> Seq.map upload
                         |> json) next ctx
             }
 
