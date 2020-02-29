@@ -7,11 +7,11 @@ open Microsoft.Extensions.Configuration
 module Database =
 
     let defaultConnection (config : IConfiguration) =
-        Sql.host config.["postgres:server"]
-        |> Sql.port (int config.["postgres:port"])
-        |> Sql.username config.["postgres:user"]
-        |> Sql.password config.["postgres:password"]
-        |> Sql.database config.["postgres:database"]
+        Sql.host config.["postgres_server"]
+        |> Sql.port (int config.["postgres_port"])
+        |> Sql.username config.["postgres_user"]
+        |> Sql.password config.["postgres_password"]
+        |> Sql.database config.["postgres_database"]
         |> Sql.sslMode SslMode.Prefer
         |> Sql.config "Pooling=true" // optional Config for connection string
 

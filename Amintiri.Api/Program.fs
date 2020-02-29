@@ -140,7 +140,7 @@ module App =
         config
             .AddJsonFile("appsettings.json", false, true)
             .AddJsonFile(sprintf "appsettings.%s.json" ctx.HostingEnvironment.EnvironmentName, true, true)
-            .AddJsonFile("secrets.json", false, true)
+            .AddJsonFile("secrets.json", true, true)
             .AddEnvironmentVariables()
         |> ignore
 
