@@ -17,3 +17,14 @@ steps:
   displayName: 'dotnet build $(buildConfiguration)'
 - script: dotnet test
   displayName: 'dotnet test'
+- script: dotnet publish --configuration $(buildConfiguration) -r $(runtime)
+  displayName: 'dotnet publish $(buildConfiguration) $(runtime)'
+- task: Docker@2
+  inputs:
+    containerRegistry: 'Docker Hub (janssenio)'
+    repository: 'janssenio/amintiri'
+    command: 'buildAndPush'
+    Dockerfile: '**/Dockerfile'
+    tags: |
+      $(Build.SourceBranchName)-latest
+      $(Build.SourceBranchName)-$(Build.BuildId)
