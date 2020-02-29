@@ -17,8 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="secrets.json" />
-    <Content Include="appsettings.json" />
+    <Content Include="secrets.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Compile Include="Domain.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="PhotoUpload.fs" />

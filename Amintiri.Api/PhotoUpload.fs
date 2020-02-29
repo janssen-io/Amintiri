@@ -15,7 +15,8 @@ module PhotoUpload =
             Error "File is empty"
         else
             // TODO: get unique filename + path outside webroot
-            let path = Path.GetTempFileName ()
+            // TODO: get path from configuration
+            let path = "/data/" + (Path.GetFileName (Path.GetTempFileName ()))
             using (System.IO.File.Create path) (fun f -> file.CopyToAsync f)
             |> ignore
             (Ok << Amintiri.Domain.Path.create) path
