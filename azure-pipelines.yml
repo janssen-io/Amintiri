@@ -28,3 +28,17 @@ steps:
     tags: |
       $(Build.SourceBranchName)-latest
       $(Build.SourceBranchName)-$(Build.BuildId)
+- task: CopyFiles@2
+  inputs:
+    Contents: '**/docker-compose.yml'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: 'echo "$(Build.SourceBranchName)-$(Build.BuildId)" > $(Build.ArtifactStagingDirectory)/tag'
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: $(Build.ArtifactStagingDirectory)
+    ArtifactName: 'amintiri'
+    publishLocation: 'Container'
+
