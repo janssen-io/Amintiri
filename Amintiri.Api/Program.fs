@@ -144,19 +144,30 @@ module App =
             .AddEnvironmentVariables()
         |> ignore
 
+    let runMigrations (host:IWebHost) =
+        using
+            (host.Services.CreateScope ())
+            (fun scope ->
+                let config = scope.ServiceProvider.GetService<IConfiguration> ()
+                let dbConfig = Database.defaultConnection config |> Sql.formatConnectionString
+                Migrations.execute dbConfig
+            )
+
     [<EntryPoint>]
     let main _ =
         let contentRoot = Directory.GetCurrentDirectory()
         let webRoot     = Path.Combine(contentRoot, "WebRoot")
-        WebHostBuilder()
-            .UseKestrel()
-            .UseContentRoot(contentRoot)
-            .UseIISIntegration()
-            .UseWebRoot(webRoot)
-            .ConfigureAppConfiguration(configureAppConfig)
-            .Configure(Action<IApplicationBuilder> configureApp)
-            .ConfigureServices(configureServices)
-            .ConfigureLogging(configureLogging)
-            .Build()
-            .Run()
+        let host = WebHostBuilder()
+                    .UseKestrel()
+                    .UseContentRoot(contentRoot)
+                    .UseIISIntegration()
+                    .UseWebRoot(webRoot)
+                    .ConfigureAppConfiguration(configureAppConfig)
+                    .Configure(Action<IApplicationBuilder> configureApp)
+                    .ConfigureServices(configureServices)
+                    .ConfigureLogging(configureLogging)
+                    .Build()
+
+        runMigrations host
+        host.Run()
         0

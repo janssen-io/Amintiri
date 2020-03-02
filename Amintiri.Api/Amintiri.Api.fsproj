@@ -27,6 +27,7 @@
     <Compile Include="Database.fs" />
     <Compile Include="PhotoUpload.fs" />
     <Compile Include="PhotoBrowse.fs" />
+    <Compile Include="Migrations.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
