@@ -14,12 +14,10 @@ module PhotoUpload =
         if file.Length = (int64)0 then
             Error "File is empty"
         else
-            // TODO: get unique filename + path outside webroot
-            // TODO: get path from configuration
             let path = "/data/" + (Path.GetFileName (Path.GetTempFileName ()))
             using (System.IO.File.Create path) (fun f -> file.CopyToAsync f)
             |> ignore
-            (Ok << Amintiri.Domain.Path.create) path
+            Amintiri.Domain.Path.create path |> Ok
 
     let add dbConfig (file : IFormFile) =
         let insert = addToDatabase dbConfig

@@ -13,22 +13,13 @@ open FSharp.Control.Tasks.V2
 open Microsoft.Extensions.Configuration
 open Npgsql.FSharp
 open Amintiri.Domain
-
-// ---------------------------------
-// Models
-// ---------------------------------
-
-type Message =
-    {
-        Text : string
-    }
+open Giraffe.GiraffeViewEngine
 
 // ---------------------------------
 // Views
 // ---------------------------------
 
 module Views =
-    open GiraffeViewEngine
 
     let layout (content: XmlNode list) =
         html [] [
@@ -41,18 +32,6 @@ module Views =
             body [] content
         ]
 
-    let partial () =
-        h1 [] [ encodedText "Imagini" ]
-
-    let index (model : Message) =
-        [
-            partial()
-            p [] [ encodedText model.Text ]
-        ] |> layout
-
-// ---------------------------------
-// Web app
-// ---------------------------------
 module App = 
 
     let fileUploadHandler =
@@ -81,35 +60,42 @@ module App =
             ((Result.map (List.map unwrapPhoto) >> json) (PhotoBrowse.list dbConfig)) next ctx
     
     let photoHandler (photoId:string) =
-        // TODO: check if user (currently not existing) can see this picture
-        // Grab path from database and return it to the user with the appropriate content type
-        json photoId
+        (dict >> json) [ ("id",photoId) ]
+
+    let browsePhotos = text "browsePhotos"
+
+    let appIndex = (htmlView <| Views.layout ([span [] [encodedText "Hello, Giraffe!"]]))
 
     let webApp =
+            GET >=> 
+                choose [
+                    route "/" >=> appIndex
+                ]
+
+    let webApi =
         choose [
             GET >=>
                 choose [
-                    //route "/" >=> indexHandler "world"
                     route "/" >=> indexHandler
+                    route "/photos/" >=> browsePhotos
                     routef "/photos/%s" photoHandler
                 ]
             POST >=>
                 choose [
                     route "/photos/" >=> fileUploadHandler
                 ]
-            setStatusCode 404 >=> text "Not Found" ]
+        ]
 
-    // ---------------------------------
-    // Error handler
-    // ---------------------------------
+    let routes =
+        choose [
+            subRoute "/api" webApi
+            subRoute "/app" webApp
+            setStatusCode 404 >=> text "Not Found"
+        ]
 
     let errorHandler (ex : Exception) (logger : ILogger) =
         logger.LogError(ex, "An unhandled exception has occurred while executing the request.")
         clearResponse >=> setStatusCode 500 >=> text ex.Message
-
-    // ---------------------------------
-    // Config and Main
-    // ---------------------------------
 
     let configureCors (builder : CorsPolicyBuilder) =
         builder.WithOrigins("http://localhost:8080")
@@ -125,7 +111,7 @@ module App =
             .UseHttpsRedirection()
             .UseCors(configureCors)
             .UseStaticFiles()
-            .UseGiraffe(webApp)
+            .UseGiraffe(routes)
 
     let configureServices (services : IServiceCollection) =
         services.AddCors()    |> ignore
