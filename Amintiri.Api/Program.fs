@@ -1,19 +1,22 @@
 namespace Amintiri.Api
 
-open System
-open System.IO
+open Amintiri.Api.Modules
+open Giraffe
+open Giraffe.GiraffeViewEngine
+open Microsoft.AspNetCore.Authentication
+open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Cors.Infrastructure
 open Microsoft.AspNetCore.Hosting
-open Microsoft.Extensions.Logging
-open Microsoft.Extensions.DependencyInjection
-open Giraffe
 open Microsoft.AspNetCore.Http
-open FSharp.Control.Tasks.V2
 open Microsoft.Extensions.Configuration
+open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Logging
+open Microsoft.IdentityModel.Tokens
 open Npgsql.FSharp
-open Amintiri.Domain
-open Giraffe.GiraffeViewEngine
+open System
+open System.IO
+open System.Text
 
 // ---------------------------------
 // Views
@@ -22,137 +25,120 @@ open Giraffe.GiraffeViewEngine
 module Views =
 
     let layout (content: XmlNode list) =
-        html [] [
-            head [] [
-                title []  [ encodedText "Imagini" ]
-                link [ _rel  "stylesheet"
-                       _type "text/css"
-                       _href "/main.css" ]
-            ]
-            body [] content
-        ]
+        html []
+            [ head []
+                  [ title [] [ encodedText "Imagini" ]
+                    link
+                        [ _rel "stylesheet"
+                          _type "text/css"
+                          _href "/main.css" ] ]
+              body [] content ]
 
-module App = 
+module App =
 
-    let fileUploadHandler =
-        fun (next : HttpFunc) (ctx : HttpContext) ->
-            let settings = ctx.GetService<IConfiguration>()
-            let dbConfig = Database.defaultConnection settings
-            let upload = PhotoUpload.add (dbConfig |> Sql.formatConnectionString)
+    type ConfigurationSection =
+        | Authorization
+        | Postgres
 
-            task {
-                return!
-                    (match ctx.Request.HasFormContentType with
-                    | false -> RequestErrors.BAD_REQUEST "Bad request"
-                    | true  ->
-                        ctx.Request.Form.Files
-                        |> Seq.map upload
-                        |> json) next ctx
-            }
+    let getSection<'t when 't: (new: unit -> 't)> (section: ConfigurationSection) (appConfig: IConfiguration) =
+        let mutable config = new 't()
+        appConfig.GetSection(section.ToString()).Bind config
+        config
 
-    let indexHandler : HttpHandler =
-        let unwrapPhoto (photo:Photo) =
-            {| Id = photo.Id; Path = Path.unwrap photo.Path; Name = photo.Name |}
+    let getDbConfig config = getSection<Database.Config> Postgres config
+    let getUserAccessConfig config = getSection<UserAccess.Config> Authorization config
 
-        fun (next: HttpFunc) (ctx: HttpContext) ->
-            let settings = ctx.GetService<IConfiguration>()
-            let dbConfig = Database.defaultConnection settings |> Sql.formatConnectionString
-            ((Result.map (List.map unwrapPhoto) >> json) (PhotoBrowse.list dbConfig)) next ctx
-    
-    let photoHandler (photoId:string) =
-        (dict >> json) [ ("id",photoId) ]
+    let authorize = requiresAuthentication (challenge JwtBearerDefaults.AuthenticationScheme)
 
-    let browsePhotos = text "browsePhotos"
+    let appIndex = (htmlView <| Views.layout ([ span [] [ encodedText "Hello, Giraffe!" ] ]))
+    let apiIndex = (dict >> json) [ "version", 0 ]
 
-    let appIndex = (htmlView <| Views.layout ([span [] [encodedText "Hello, Giraffe!"]]))
+    let authEndpoints next (ctx: HttpContext) =
+        let uaConfig = getUserAccessConfig (ctx.GetService())
+        let dbConfig = getDbConfig (ctx.GetService())
+        choose
+            [ POST >=> route "/token" >=> UserAccess.handlePostToken uaConfig dbConfig
+              POST >=> route "/register" >=> UserAccess.register dbConfig ] next ctx
 
-    let webApp =
-            GET >=> 
-                choose [
-                    route "/" >=> appIndex
-                ]
+    let appEndpoints = GET >=> choose [ route "/" >=> appIndex ]
 
-    let webApi =
-        choose [
-            GET >=>
-                choose [
-                    route "/" >=> indexHandler
-                    route "/photos/" >=> browsePhotos
-                    routef "/photos/%s" photoHandler
-                ]
-            POST >=>
-                choose [
-                    route "/photos/" >=> fileUploadHandler
-                ]
-        ]
+    let apiEndpoints =
+        choose
+            [ GET >=> choose
+                          [ route "/" >=> apiIndex
+                            route "/photos/" >=> (fun f ctx ->
+                            let dbConfig = getDbConfig (ctx.GetService())
+                            Photos.browsePhotos dbConfig f ctx)
+                            routef "/photos/%s" Photos.photoHandler ]
+              POST >=> choose
+                           [ route "/photos/" >=> (fun f ctx ->
+                             let dbConfig = getDbConfig (ctx.GetService())
+                             Photos.fileUploadHandler dbConfig f ctx) ] ]
 
     let routes =
-        choose [
-            subRoute "/api" webApi
-            subRoute "/app" webApp
-            setStatusCode 404 >=> text "Not Found"
-        ]
+        choose
+            [ subRoute "/api" authorize >=> apiEndpoints
+              subRoute "/app" appEndpoints
+              subRoute "/auth" authEndpoints
+              setStatusCode 404 >=> text "Not Found" ]
 
-    let errorHandler (ex : Exception) (logger : ILogger) =
+    let errorHandler (ex: Exception) (logger: ILogger) =
         logger.LogError(ex, "An unhandled exception has occurred while executing the request.")
         clearResponse >=> setStatusCode 500 >=> text ex.Message
 
-    let configureCors (builder : CorsPolicyBuilder) =
-        builder.WithOrigins("http://localhost:8080")
-               .AllowAnyMethod()
-               .AllowAnyHeader()
-               |> ignore
+    let configureCors (builder: CorsPolicyBuilder) =
+        builder.WithOrigins("http://localhost:8080").AllowAnyMethod().AllowAnyHeader() |> ignore
 
-    let configureApp (app : IApplicationBuilder) =
+    let configureApp (app: IApplicationBuilder) =
         let env = app.ApplicationServices.GetService<IWebHostEnvironment>()
         (match env.EnvironmentName with
-        | "Development"  -> app.UseDeveloperExceptionPage()
-        | _ -> app.UseGiraffeErrorHandler errorHandler)
-            .UseHttpsRedirection()
-            .UseCors(configureCors)
-            .UseStaticFiles()
-            .UseGiraffe(routes)
+         | "Development" -> app.UseDeveloperExceptionPage()
+         | _ -> app.UseGiraffeErrorHandler errorHandler).UseAuthentication().UseHttpsRedirection()
+            .UseCors(configureCors).UseStaticFiles().UseGiraffe(routes)
 
-    let configureServices (services : IServiceCollection) =
-        services.AddCors()    |> ignore
+    let configureServices (services: IServiceCollection) =
+        services.AddCors() |> ignore
         services.AddGiraffe() |> ignore
 
-    let configureLogging (builder : ILoggingBuilder) =
-        builder.AddFilter(fun l -> l.Equals LogLevel.Error)
-               .AddConsole()
-               .AddDebug() |> ignore
+        let svc = services.BuildServiceProvider()
+        let uaConfig = getUserAccessConfig (svc.GetService())
 
-    let configureAppConfig (ctx : WebHostBuilderContext) (config : IConfigurationBuilder) =
-        config
-            .AddJsonFile("appsettings.json", false, true)
-            .AddJsonFile(sprintf "appsettings.%s.json" ctx.HostingEnvironment.EnvironmentName, true, true)
-            .AddJsonFile("secrets.json", true, true)
-            .AddEnvironmentVariables()
-        |> ignore
+        let authOptions (o: AuthenticationOptions) =
+            o.DefaultAuthenticateScheme <- JwtBearerDefaults.AuthenticationScheme
+            o.DefaultChallengeScheme <- JwtBearerDefaults.AuthenticationScheme
 
-    let runMigrations (host:IWebHost) =
-        using
-            (host.Services.CreateScope ())
-            (fun scope ->
-                let config = scope.ServiceProvider.GetService<IConfiguration> ()
-                let dbConfig = Database.defaultConnection config |> Sql.formatConnectionString
-                Migrations.execute dbConfig
-            )
+        let jwtBearerOptions (cfg: JwtBearerOptions) =
+            cfg.SaveToken <- true
+            cfg.IncludeErrorDetails <- true
+            cfg.Audience <- uaConfig.Audience
+            cfg.TokenValidationParameters <-
+                new TokenValidationParameters(ValidIssuer = uaConfig.Issuer,
+                                              IssuerSigningKey =
+                                                  SymmetricSecurityKey(Encoding.UTF8.GetBytes(UserAccess.secret)))
+
+        services.AddAuthentication(authOptions).AddJwtBearer(Action<JwtBearerOptions> jwtBearerOptions) |> ignore
+
+    let configureLogging (builder: ILoggingBuilder) =
+        builder.AddFilter(fun l -> l.Equals LogLevel.Information).AddConsole().AddDebug() |> ignore
+
+    let configureAppConfig (ctx: WebHostBuilderContext) (config: IConfigurationBuilder) =
+        config.AddJsonFile("appsettings.json", false, true)
+              .AddJsonFile(sprintf "appsettings.%s.json" ctx.HostingEnvironment.EnvironmentName, true, true)
+              .AddJsonFile("secrets.json", true, true).AddEnvironmentVariables() |> ignore
+
+    let runMigrations (host: IWebHost) =
+        let config = getDbConfig (host.Services.GetService())
+        let dbConfig = Database.defaultConnection config |> Sql.formatConnectionString
+        Migrations.execute dbConfig
 
     [<EntryPoint>]
     let main _ =
         let contentRoot = Directory.GetCurrentDirectory()
-        let webRoot     = Path.Combine(contentRoot, "WebRoot")
-        let host = WebHostBuilder()
-                    .UseKestrel()
-                    .UseContentRoot(contentRoot)
-                    .UseIISIntegration()
-                    .UseWebRoot(webRoot)
-                    .ConfigureAppConfiguration(configureAppConfig)
-                    .Configure(Action<IApplicationBuilder> configureApp)
-                    .ConfigureServices(configureServices)
-                    .ConfigureLogging(configureLogging)
-                    .Build()
+        let webRoot = Path.Combine(contentRoot, "WebRoot")
+        let host =
+            WebHostBuilder().UseKestrel().UseContentRoot(contentRoot).UseIISIntegration().UseWebRoot(webRoot)
+                .ConfigureAppConfiguration(configureAppConfig).Configure(Action<IApplicationBuilder> configureApp)
+                .ConfigureServices(configureServices).ConfigureLogging(configureLogging).Build()
 
         runMigrations host
         host.Run()

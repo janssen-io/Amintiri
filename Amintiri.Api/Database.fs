@@ -1,39 +1,21 @@
-﻿namespace Amintiri.Api
+namespace Amintiri.Api
 
-open Amintiri.Domain
 open Npgsql.FSharp
 open Microsoft.Extensions.Configuration
 
 module Database =
+    type Config() =
+        member val Database = "" with get, set
+        member val Password = "" with get, set
+        member val Username = "" with get, set
+        member val Server = "" with get, set
+        member val Port = 0 with get, set
 
-    let defaultConnection (config : IConfiguration) =
-        Sql.host config.["postgres_server"]
-        |> Sql.port (int config.["postgres_port"])
-        |> Sql.username config.["postgres_user"]
-        |> Sql.password config.["postgres_password"]
-        |> Sql.database config.["postgres_database"]
+    let defaultConnection (config: Config) =
+        Sql.host config.Server
+        |> Sql.port config.Port
+        |> Sql.username config.Username
+        |> Sql.password config.Password
+        |> Sql.database config.Database
         |> Sql.sslMode SslMode.Prefer
         |> Sql.config "Pooling=true" // optional Config for connection string
-
-    module Photos =
-                
-        let insert connectionString (path:Path) (name:string) =
-            Sql.connect connectionString
-            |> Sql.query "INSERT INTO photos (path, name) VALUES (@path, @name)"
-            |> Sql.parameters [ 
-                "path", (Path.unwrap >> SqlValue.String) path
-                "name", SqlValue.String name
-            ]  
-            |> Sql.executeNonQuery
-
-        let list connectionString =
-            Sql.connect connectionString
-            |> Sql.query "SELECT * FROM photos"
-            |> Sql.execute (fun row ->
-                {
-                    Id = row.int "id"
-                    Path = (row.text "path" |> Path.unsafeCreate)
-                    Name = row.text "name"
-                }
-            )
-
