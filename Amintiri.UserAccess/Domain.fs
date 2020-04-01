@@ -19,8 +19,6 @@ module Domain =
         { Username: Username
           Password: HashedPassword }
 
-    type ValidatePassword = Credentials -> Username option
-
     type Registration =
         { Username: Username
           Password: TextPassword
@@ -35,3 +33,11 @@ module Domain =
         | IncorrectPasswordConfirmation
         | DuplicateUsername of Username
         | TechnicalError of exn
+
+    type QueryError =
+        | TechnicalError of exn
+        | NoResults
+
+    type ValidatePassword = Credentials -> Result<Username, AuthenticationError>
+
+    type Register = Registration -> Result<Unit, RegistrationError>

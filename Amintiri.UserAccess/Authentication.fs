@@ -6,12 +6,15 @@ module Authentication =
 
     let private hash (user: User) (login: Credentials) = hashWithSalt user.Password.Salt login.Password
 
-    let validatePassword connectionString: ValidatePassword =
+    let internal validatePassword (findUser: Username -> Result<User, QueryError>): ValidatePassword =
         function
         | credentials ->
-            match Database.findUser connectionString credentials.Username with
-            | Error _ -> None
-            | Ok None -> None
-            | Ok(Some user) ->
-                if hash user credentials = user.Password then Some credentials.Username
-                else None
+            match findUser credentials.Username with
+            | Ok user ->
+                match hash user credentials = user.Password with
+                | true -> Ok credentials.Username
+                | false -> Error IncorrectPassword
+            | Error error ->
+                match error with
+                | TechnicalError exn -> AuthenticationError.TechnicalError exn |> Error
+                | NoResults -> IncorrectUsername |> Error

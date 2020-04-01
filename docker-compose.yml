@@ -24,3 +24,4 @@ services:
             - 30000:80
         environment:
             postgres__password: ${POSTGRES_PASSWORD}
+            authorization__appkey: ${APPKEY}

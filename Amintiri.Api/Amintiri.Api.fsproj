@@ -22,11 +22,15 @@
     </Content>
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <TransformOnBuild>true</TransformOnBuild>
     </Content>
     <Compile Include="Database.fs" />
     <Compile Include="Migrations.fs" />
-    <Compile Include="Modules\UserAccess.fs" />
-    <Compile Include="Modules\Photos.fs" />
+    <Compile Include="Modules\Common\Errors.fs" />
+    <Compile Include="Modules\Photos\Types.fs" />
+    <Compile Include="Modules\Photos\Endpoints.fs" />
+    <Compile Include="Modules\UserAccess\Types.fs" />
+    <Compile Include="Modules\UserAccess\Endpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -6,14 +6,18 @@
 
   <ItemGroup>
     <Compile Include="Domain.fs" />
-    <Compile Include="Database.fs" />
-    <Compile Include="PhotoBrowse.fs" />
     <Compile Include="PhotoUpload.fs" />
+    <Compile Include="PhotoBrowse.fs" />
+    <Compile Include="Application.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
     <PackageReference Include="Npgsql.FSharp" Version="3.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Amintiri.Common\Amintiri.Common.fsproj" />
   </ItemGroup>
 
 </Project>

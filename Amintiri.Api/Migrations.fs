@@ -79,7 +79,7 @@ module internal Migrations =
             INSERT
                 INTO migrations (id, name, createdon)
                 VALUES (%i, '%s', '%s')
-        """ id m.Name createdon)
+        """            id m.Name createdon)
         |> Sql.executeNonQuery
         |> function
         | Ok _ -> ()

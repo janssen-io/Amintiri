@@ -7,14 +7,18 @@
   <ItemGroup>
     <Compile Include="Domain.fs" />
     <Compile Include="HashedPassword.fs" />
-    <Compile Include="Database.fs" />
     <Compile Include="Authentication.fs" />
     <Compile Include="Registration.fs" />
+    <Compile Include="Application.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Cryptography.KeyDerivation" Version="3.1.2" />
     <PackageReference Include="Npgsql.FSharp" Version="3.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Amintiri.Common\Amintiri.Common.fsproj" />
   </ItemGroup>
 
 </Project>

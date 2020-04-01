@@ -6,18 +6,19 @@ module Registration =
     type internal Register = Registration -> Result<Unit, RegistrationError>
 
     let private validatePasswordConfirmation registration =
-        if registration.Password = registration.PasswordConfirmation then Ok registration
+        if registration.Password = registration.PasswordConfirmation
+        then Ok registration
         else Error IncorrectPasswordConfirmation
 
-    let private validateUniqueUsername connectionString registration =
+    let private validateUniqueUsername (findUser: Username -> Result<User, QueryError>) registration =
         let username = registration.Username
-        match Database.findUser connectionString username with
-        | Ok None -> Ok registration
+        match findUser username with
         | Ok _ -> Error(DuplicateUsername username)
-        | Error exn -> Error(TechnicalError exn)
+        | Error(TechnicalError exn) -> Error(RegistrationError.TechnicalError exn)
+        | Error NoResults -> Ok registration
 
-    let register connectionString: Register =
+    let internal register findUser addUser: Register =
         validatePasswordConfirmation
-        >> Result.bind (validateUniqueUsername connectionString)
+        >> Result.bind (validateUniqueUsername findUser)
         >> Result.map (fun reg -> (reg.Username, HashedPassword.hash reg.Password))
-        >> Result.bind (fun (user, pass) -> Database.addUser connectionString (user, pass))
+        >> Result.bind addUser
